@@ -76,6 +76,10 @@ const userSchema = new mongoose.Schema(
 userSchema.pre('save', async function (next) {
   if (!this.isModified('passwordHash')) return next();
   try {
+    // Prevent double-hashing if passwordHash is already a bcrypt hash
+    if (this.passwordHash && /^\$2[aby]\$\d{2}\$/.test(this.passwordHash)) {
+      return next();
+    }
     const salt = await bcrypt.genSalt(10);
     this.passwordHash = await bcrypt.hash(this.passwordHash, salt);
     next();

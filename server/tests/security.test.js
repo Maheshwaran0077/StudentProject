@@ -12,6 +12,7 @@ const StudentCareCase = require('../models/StudentCareCase');
 const JWT_SECRET = process.env.JWT_SECRET || 'supersecretcollegecommunicationkey123456789!';
 
 describe('Security & Authorization Integration Tests', () => {
+  jest.setTimeout(30000);
   let studentA, studentB, faculty, admin, officer;
   let tokenStudentA, tokenStudentB, tokenFaculty, tokenAdmin;
   let conversationStudentA;

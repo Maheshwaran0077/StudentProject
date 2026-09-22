@@ -66,7 +66,8 @@ const getUser = async (req, res, next) => {
 
 const createUser = async (req, res, next) => {
   try {
-    const { name, email, password, role, registerNumber, employeeId, departmentId, phone, profileImage } = req.body;
+    const { name, email: rawEmail, password, role, registerNumber, employeeId, departmentId, phone, profileImage } = req.body;
+    const email = rawEmail?.trim().toLowerCase();
 
     // Check if email already exists
     const existingUser = await User.findOne({ email });
@@ -344,12 +345,81 @@ const updateMe = async (req, res, next) => {
   }
 };
 
+const deleteUser = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.params.id);
+    if (!user) {
+      return next(new AppError('No user found with that ID', 404));
+    }
+
+    if (user._id.toString() === req.user._id.toString()) {
+      return next(new AppError('You cannot delete your own admin account', 400));
+    }
+
+    await User.findByIdAndDelete(req.params.id);
+
+    // Clean up associated faculty record if user was FACULTY
+    if (user.role === 'FACULTY') {
+      await Faculty.deleteOne({ userId: user._id });
+    }
+
+    await auditService.logAction({
+      req,
+      userId: req.user._id,
+      action: 'DELETE_USER',
+      resourceType: 'user',
+      resourceId: user._id
+    });
+
+    res.status(200).json({
+      status: 'success',
+      message: 'User deleted successfully'
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const resetUserPassword = async (req, res, next) => {
+  try {
+    const { newPassword } = req.body;
+    if (!newPassword || newPassword.length < 6) {
+      return next(new AppError('Password must be at least 6 characters long', 400));
+    }
+
+    const user = await User.findById(req.params.id);
+    if (!user) {
+      return next(new AppError('No user found with that ID', 404));
+    }
+
+    user.passwordHash = newPassword; // pre-save hook will hash it
+    await user.save();
+
+    await auditService.logAction({
+      req,
+      userId: req.user._id,
+      action: 'ADMIN_RESET_PASSWORD',
+      resourceType: 'user',
+      resourceId: user._id
+    });
+
+    res.status(200).json({
+      status: 'success',
+      message: 'User password updated successfully'
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   getUsers,
   getUser,
   createUser,
   updateUser,
   toggleUserStatus,
+  deleteUser,
+  resetUserPassword,
   getSystemStats,
   getAuditLogs,
   updateMe

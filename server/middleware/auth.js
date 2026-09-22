@@ -9,8 +9,10 @@ const authenticate = async (req, res, next) => {
   try {
     let token;
 
-    // Read token from cookies or authorization header
-    if (req.headers.cookie) {
+    // 1) Read token from Authorization header first, then cookies
+    if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
+      token = req.headers.authorization.split(' ')[1];
+    } else if (req.headers.cookie) {
       const cookies = req.headers.cookie.split(';').reduce((acc, cookie) => {
         const parts = cookie.split('=');
         if (parts.length >= 2) {
@@ -20,27 +22,30 @@ const authenticate = async (req, res, next) => {
         }
         return acc;
       }, {});
-      token = cookies.token;
+      if (cookies.token && cookies.token !== 'loggedout') {
+        token = cookies.token;
+      }
     }
 
-    if (!token && req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
-      token = req.headers.authorization.split(' ')[1];
-    }
-
-    if (!token) {
+    if (!token || token === 'loggedout') {
       return next(new AppError('You are not logged in! Please log in to get access.', 401));
     }
 
-    // Verify token
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'supersecretcollegecommunicationkey123456789!');
+    // 2) Verify token
+    let decoded;
+    try {
+      decoded = jwt.verify(token, process.env.JWT_SECRET || 'supersecretcollegecommunicationkey123456789!');
+    } catch (err) {
+      return next(new AppError('Invalid or expired token. Please log in again.', 401));
+    }
 
-    // Check if user still exists
+    // 3) Check if user still exists
     const currentUser = await User.findById(decoded.id).populate('departmentId');
     if (!currentUser) {
       return next(new AppError('The user belonging to this token no longer exists.', 401));
     }
 
-    // Check if user is active
+    // 4) Check if user is active
     if (!currentUser.isActive) {
       return next(new AppError('Your account has been deactivated. Please contact an administrator.', 403));
     }

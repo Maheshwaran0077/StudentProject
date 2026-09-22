@@ -92,6 +92,14 @@ if (process.env.NODE_ENV === 'development') {
   });
 }
 
+// Health check / Root route
+app.get('/', (req, res) => {
+  res.status(200).json({
+    status: 'success',
+    message: 'College Communication & Student Support System API is running'
+  });
+});
+
 // Mount REST API routers
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);

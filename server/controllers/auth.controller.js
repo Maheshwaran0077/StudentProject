@@ -125,7 +125,8 @@ const refresh = async (req, res, next) => {
 
 const register = async (req, res, next) => {
   try {
-    const { name, email, password, role, registerNumber, employeeId, departmentId, phone, designation, yearOfStudy } = req.body;
+    const { name, email: rawEmail, password, role, registerNumber, employeeId, departmentId, phone, designation, yearOfStudy } = req.body;
+    const email = rawEmail?.trim().toLowerCase();
 
     const existingUser = await User.findOne({ email });
     if (existingUser) {

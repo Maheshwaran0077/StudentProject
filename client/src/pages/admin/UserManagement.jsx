@@ -3,7 +3,7 @@ import api from '../../services/api';
 import { getAvatarUrl } from '../../utils/avatar';
 import { 
   Search, Plus, UserPlus, ToggleLeft, ToggleRight, Edit, X, 
-  Trash2, AlertCircle, Info, ShieldAlert, GraduationCap, Users
+  Trash2, AlertCircle, Info, ShieldAlert, GraduationCap, Users, Key, Check
 } from 'lucide-react';
 
 const UserManagement = () => {
@@ -21,6 +21,18 @@ const UserManagement = () => {
   const [modalOpen, setModalOpen] = useState(false);
   const [editUser, setEditUser] = useState(null); // null if creating
   const [errorMsg, setErrorMsg] = useState('');
+
+  // Password Reset Modal state
+  const [passwordModalOpen, setPasswordModalOpen] = useState(false);
+  const [passwordTargetUser, setPasswordTargetUser] = useState(null);
+  const [newPassword, setNewPassword] = useState('');
+  const [passwordErrorMsg, setPasswordErrorMsg] = useState('');
+  const [passwordSuccessMsg, setPasswordSuccessMsg] = useState('');
+
+  // Delete User Modal state
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [deleteTargetUser, setDeleteTargetUser] = useState(null);
+  const [deleteErrorMsg, setDeleteErrorMsg] = useState('');
 
   // Form Fields
   const [name, setName] = useState('');
@@ -92,6 +104,15 @@ const UserManagement = () => {
           departmentId: selectedDept || null
         };
         await api.put(`/users/${editUser._id}`, updateData);
+
+        // If admin provided a new password during edit, update it
+        if (password && password.trim() !== '') {
+          if (password.trim().length < 6) {
+            setErrorMsg('Password must be at least 6 characters long');
+            return;
+          }
+          await api.patch(`/users/${editUser._id}/password`, { newPassword: password });
+        }
       } else {
         // Create user
         const createData = {
@@ -131,6 +152,51 @@ const UserManagement = () => {
     setEmployeeId(u.employeeId || '');
     setSelectedDept(u.departmentId?._id || '');
     setModalOpen(true);
+  };
+
+  const openPasswordModal = (u) => {
+    setPasswordTargetUser(u);
+    setNewPassword('');
+    setPasswordErrorMsg('');
+    setPasswordSuccessMsg('');
+    setPasswordModalOpen(true);
+  };
+
+  const handleResetPassword = async (e) => {
+    e.preventDefault();
+    setPasswordErrorMsg('');
+    setPasswordSuccessMsg('');
+    if (!newPassword || newPassword.length < 6) {
+      setPasswordErrorMsg('Password must be at least 6 characters long');
+      return;
+    }
+    try {
+      await api.patch(`/users/${passwordTargetUser._id}/password`, { newPassword });
+      setPasswordSuccessMsg(`Password for ${passwordTargetUser.name} updated successfully!`);
+      setTimeout(() => {
+        setPasswordModalOpen(false);
+      }, 1500);
+    } catch (err) {
+      setPasswordErrorMsg(err.response?.data?.message || 'Password update failed');
+    }
+  };
+
+  const openDeleteModal = (u) => {
+    setDeleteTargetUser(u);
+    setDeleteErrorMsg('');
+    setDeleteModalOpen(true);
+  };
+
+  const handleDeleteUser = async () => {
+    setDeleteErrorMsg('');
+    try {
+      await api.delete(`/users/${deleteTargetUser._id}`);
+      setUsers(prev => prev.filter(u => u._id !== deleteTargetUser._id));
+      setDeleteModalOpen(false);
+      setDeleteTargetUser(null);
+    } catch (err) {
+      setDeleteErrorMsg(err.response?.data?.message || 'Failed to delete user');
+    }
   };
 
   const clearForm = () => {
@@ -286,12 +352,29 @@ const UserManagement = () => {
                       </button>
                     </td>
                     <td className="px-6 py-4 text-right">
-                      <button
-                        onClick={() => openEditModal(u)}
-                        className="rounded-lg p-1.5 border border-slate-200 hover:bg-slate-50 text-slate-600 transition-colors shadow-sm"
-                      >
-                        <Edit size={14} />
-                      </button>
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          onClick={() => openEditModal(u)}
+                          title="Edit user details"
+                          className="rounded-lg p-1.5 border border-slate-200 hover:bg-slate-100 text-slate-600 transition-colors shadow-sm"
+                        >
+                          <Edit size={14} />
+                        </button>
+                        <button
+                          onClick={() => openPasswordModal(u)}
+                          title="Reset / Update Password"
+                          className="rounded-lg p-1.5 border border-amber-200 bg-amber-50 hover:bg-amber-100 text-amber-700 transition-colors shadow-sm"
+                        >
+                          <Key size={14} />
+                        </button>
+                        <button
+                          onClick={() => openDeleteModal(u)}
+                          title="Delete user account"
+                          className="rounded-lg p-1.5 border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-600 transition-colors shadow-sm"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -353,18 +436,19 @@ const UserManagement = () => {
                 />
               </div>
 
-              {!editUser && (
-                <div>
-                  <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500">Account Password</label>
-                  <input
-                    type="password"
-                    required
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="w-full mt-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-xs text-slate-850 focus:outline-none focus:ring-1 focus:ring-primary-500 focus:bg-white"
-                  />
-                </div>
-              )}
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500">
+                  {editUser ? 'New Password (optional)' : 'Account Password'}
+                </label>
+                <input
+                  type="password"
+                  required={!editUser}
+                  placeholder={editUser ? '•••••••• (leave blank to keep current)' : 'Minimum 6 characters'}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full mt-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-xs text-slate-850 focus:outline-none focus:ring-1 focus:ring-primary-500 focus:bg-white"
+                />
+              </div>
 
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500">Phone Number</label>
@@ -440,6 +524,119 @@ const UserManagement = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* PASSWORD RESET MODAL */}
+      {passwordModalOpen && passwordTargetUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl border border-slate-100 space-y-4 animate-fade-in text-left">
+            <div className="flex items-center justify-between border-b pb-3">
+              <div className="flex items-center gap-2">
+                <Key className="h-5 w-5 text-amber-500" />
+                <h3 className="text-sm font-bold text-slate-800">Update User Password</h3>
+              </div>
+              <button
+                onClick={() => setPasswordModalOpen(false)}
+                className="rounded p-1 hover:bg-slate-100 text-slate-500"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="text-xs text-slate-500">
+              Set a new password for <span className="font-semibold text-slate-800">{passwordTargetUser.name}</span> ({passwordTargetUser.email}).
+            </div>
+
+            <form onSubmit={handleResetPassword} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500">New Password</label>
+                <input
+                  type="password"
+                  required
+                  placeholder="Minimum 6 characters"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  className="w-full mt-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-xs text-slate-850 focus:outline-none focus:ring-1 focus:ring-amber-500 focus:bg-white"
+                />
+              </div>
+
+              {passwordErrorMsg && (
+                <div className="p-3 bg-rose-50 border border-rose-100 rounded-lg text-xs text-rose-600 flex items-center gap-2">
+                  <AlertCircle size={14} />
+                  <span>{passwordErrorMsg}</span>
+                </div>
+              )}
+
+              {passwordSuccessMsg && (
+                <div className="p-3 bg-emerald-50 border border-emerald-100 rounded-lg text-xs text-emerald-600 flex items-center gap-2">
+                  <Check size={14} />
+                  <span>{passwordSuccessMsg}</span>
+                </div>
+              )}
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setPasswordModalOpen(false)}
+                  className="flex-1 rounded-lg border border-slate-200 bg-white py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 rounded-lg bg-amber-600 hover:bg-amber-500 text-white py-2 text-xs font-semibold shadow-md shadow-amber-500/15"
+                >
+                  Update Password
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* DELETE CONFIRMATION MODAL */}
+      {deleteModalOpen && deleteTargetUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl border border-slate-100 space-y-4 animate-fade-in text-left">
+            <div className="flex items-center gap-3 border-b pb-3 text-rose-600">
+              <div className="p-2 rounded-full bg-rose-100">
+                <Trash2 className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-slate-800">Delete User Account</h3>
+                <p className="text-[10px] text-slate-400">This action cannot be undone</p>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-600">
+              Are you sure you want to permanently delete <span className="font-bold text-slate-800">{deleteTargetUser.name}</span> (<span className="text-slate-500">{deleteTargetUser.email}</span>)?
+            </p>
+
+            {deleteErrorMsg && (
+              <div className="p-3 bg-rose-50 border border-rose-100 rounded-lg text-xs text-rose-600 flex items-center gap-2">
+                <AlertCircle size={14} />
+                <span>{deleteErrorMsg}</span>
+              </div>
+            )}
+
+            <div className="flex gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setDeleteModalOpen(false)}
+                className="flex-1 rounded-lg border border-slate-200 bg-white py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleDeleteUser}
+                className="flex-1 rounded-lg bg-rose-600 hover:bg-rose-500 text-white py-2 text-xs font-semibold shadow-md shadow-rose-500/15"
+              >
+                Delete Account
+              </button>
+            </div>
           </div>
         </div>
       )}

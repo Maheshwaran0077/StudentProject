@@ -18,6 +18,8 @@ router.get('/stats', authorize('ADMIN'), userController.getSystemStats);
 router.get('/audit', authorize('ADMIN'), userController.getAuditLogs);
 router.put('/:id', authorize('ADMIN'), validate(updateUserSchema), userController.updateUser);
 router.patch('/:id/status', authorize('ADMIN'), userController.toggleUserStatus);
+router.patch('/:id/password', authorize('ADMIN'), userController.resetUserPassword);
+router.delete('/:id', authorize('ADMIN'), userController.deleteUser);
 
 // Self/Shared details route
 router.get('/:id', userController.getUser);
